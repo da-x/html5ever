@@ -38,6 +38,10 @@ pub struct SerializeOpts {
     /// creating a default parent on the element stack. No extra start elem will
     /// actually be written. Default: false
     pub create_missing_parent: bool,
+
+    /// Close childless elements. If not used, elements such as <col> will be
+    /// serialized like `<col>` instead of `<col/>`.
+    pub close_childless_elements: bool,
 }
 
 impl Default for SerializeOpts {
@@ -46,6 +50,7 @@ impl Default for SerializeOpts {
             scripting_enabled: true,
             traversal_scope: TraversalScope::ChildrenOnly(None),
             create_missing_parent: false,
+            close_childless_elements: false,
         }
     }
 }
@@ -161,7 +166,6 @@ impl<Wr: Write> Serializer for HtmlSerializer<Wr> {
             self.write_escaped(value, true)?;
             self.writer.write_all(b"\"")?;
         }
-        self.writer.write_all(b">")?;
 
         let ignore_children = name.ns == ns!(html) &&
             match name.local {
@@ -185,6 +189,12 @@ impl<Wr: Write> Serializer for HtmlSerializer<Wr> {
                 local_name!("wbr") => true,
                 _ => false,
             };
+
+        if self.opts.close_childless_elements && ignore_children {
+            self.writer.write_all(b"/>")?;
+        } else {
+            self.writer.write_all(b">")?;
+        }
 
         self.stack.push(ElemInfo {
             html_name,
